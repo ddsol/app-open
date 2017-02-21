@@ -1,0 +1,17 @@
+{
+  "name": "app-open",
+  "version": "1.0.0",
+  "description": "Opens editors from an http client like a browser",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Han de Boer",
+  "license": "ISC",
+  "dependencies": {
+    "bluebird": "^3.4.7",
+    "bluebird-co": "^2.2.0",
+    "express": "^4.14.1",
+    "node-process-windows": "0.0.2"
+  }
+}
