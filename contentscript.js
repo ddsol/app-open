@@ -74,7 +74,7 @@
 
       let file;
 
-      const locFile = /github\.com\/[^/]+\/[^/]+\/blob\/[^/]+\/(.*)/.exec(location);
+      const locFile = /github\.com\/[^/]+\/[^/]+\/blob\/[^/]+\/([^#?]*)/.exec(location);
 
       if (locFile) {
         file = locFile[1];
