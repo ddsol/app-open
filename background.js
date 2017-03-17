@@ -32,33 +32,52 @@ function getJson(url) {
   });
 }
 
+function snakeCase(camels) {
+  return camels.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
+}
+
+function dashCase(camels) {
+  return camels.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+}
+
 function queryString(query) {
-  let s = Object.keys(query).map(key => key + '=' + encodeURIComponent(query[key])).join('&');
+  let s = Object.keys(query).map(key => snakeCase(key) + '=' + encodeURIComponent(query[key])).join('&');
   return s ? '?' + s : '';
 }
 
-function pick(o, props) {
-  let r = {};
+function pick(obj, props) {
+  if (typeof props === 'string') {
+    props = props.split(/\s*,\s*/);
+  }
+  let result = {};
   props.forEach(prop => {
-    if (o[prop] !== undefined) {
-      r[prop] = o[prop];
+    if (obj[prop] !== undefined) {
+      result[prop] = obj[prop];
     }
   });
-  return r;
+  return result;
 }
 
-function openEditor(options) {
-  return getJson(`http://localhost:${port}/open-editor${queryString(pick(options, ['repo', 'file', 'line', 'column']))}`);
+function q(options, props) {
+  return queryString(pick(options, props));
 }
 
-function switchBranch(options) {
-  return getJson(`http://localhost:${port}/switch-branch${queryString(pick(options, ['repo', 'branch']))}`);
+function doCall(endpoint, props, options) {
+  return getJson(`http://localhost:${port}/${endpoint}${q(options, props)}`);
 }
 
-const funcs = {
-  openEditor,
-  switchBranch
-};
+const funcs = {};
+
+function makeFunc(name, params) {
+  return doCall.bind(null, dashCase(name), params);
+}
+
+function addFunc(name, params) {
+  funcs[name] = makeFunc(name, params);
+}
+
+addFunc('openEditor', 'repo, file, line, column');
+addFunc('switchBranch', 'repo, branch, branchRepo, pr');
 
 chrome.runtime.onMessage.addListener(
   function(request, sender, respond) {

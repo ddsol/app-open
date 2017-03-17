@@ -22,7 +22,7 @@
   }
 
   const openEditor = makeStub('openEditor', 'repo, file, line, column');
-  const switchBranch = makeStub('switchBranch', 'repo, branch');
+  const switchBranch = makeStub('switchBranch', 'repo, branch, branchRepo, pr');
 
   function getRepo() {
     const repoLink = document.querySelector('div.repohead-details-container>h1>strong[itemprop="name"]>a');
@@ -108,12 +108,27 @@
 
   function handleBranchClick(e) {
     let target = e.target;
+    const parent = target.parentNode;
+    if (/\bcommit-ref\b/.test(parent.className)) {
+      target = parent;
+    }
     if (target && !e.altKey && e.ctrlKey && !e.shiftKey) {
       const repo = getRepo();
+      let branchRepo = repo;
+      let pr = undefined;
       e.preventDefault();
       e.stopPropagation();
-      const branch = target.innerText.trim();
-      switchBranch(repo, branch).then(response => okMessage(response, `Switched to ${branch}`), err => flashMessage(err));
+      let branch = target.innerText.trim();
+      if (/:/.test(branch) && target.title) {
+        let split = target.title.trim().split(':');
+        branchRepo = split[0];
+        branch = split[1];
+        pr = /github\.com\/[^/]+\/[^/]+\/pull\/([^#?]*)/.exec(location);
+        if (pr) {
+          pr = pr[1];
+        }
+      }
+      switchBranch(repo, branch, branchRepo, pr).then(response => okMessage(response, `Switched to ${branch}`), err => flashMessage(err));
     }
   }
 

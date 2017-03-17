@@ -12,6 +12,7 @@
   "dependencies": {
     "bluebird": "^3.4.7",
     "bluebird-co": "^2.2.0",
+    "camel-case": "^3.0.0",
     "express": "^4.14.1",
     "node-process-windows": "0.0.2"
   }

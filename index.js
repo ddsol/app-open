@@ -9,24 +9,12 @@ const openEditor = require('./lib/open-editor');
 const switchBranch = require('./lib/switch-branch');
 const co = require('bluebird-co').co;
 const config = require('./lib/config');
+const camelCase = require('camel-case');
 
 express.response.sendJson = function(json) {
   this.setHeader('Content-Type', 'application/json');
   this.send(JSON.stringify(json));
 };
-
-function route(path, handler) {
-  app.get(path, function (req, res) {
-    co(function*() {
-      try {
-        res.sendJson((yield* handler(req, res)) || 'OK');
-      } catch (err) {
-        console.log(err.stack);
-        res.sendJson({ error: err.message });
-      }
-    });
-  });
-}
 
 function rootFromRepo(repo) {
   let root;
@@ -47,27 +35,68 @@ function rootFromRepo(repo) {
   return path.normalize(root);
 }
 
-route('/open-editor', function* (req, res) {
-  const query = req.query;
+function camelCaseObj(obj) {
+  const out = {};
+  Object.keys(obj).forEach(prop => out[camelCase(prop)] = obj[prop]);
+  return out;
+}
+
+function route(path, handler, noRoot) {
+  app.get(path, function (req, res) {
+    co(function*() {
+      try {
+        let query = {};
+        if (req.query) {
+          query = req.query = camelCaseObj(req.query);
+          if (query.repo && !query.root) {
+            try {
+              query.root = rootFromRepo(query.repo);
+            } catch(err) {
+              if (noRoot) {
+                console.log(err.stack);
+              } else {
+                throw err;
+              }
+            }
+          }
+        }
+        res.sendJson((yield* handler(query, req, res)) || 'OK');
+      } catch (err) {
+        console.log(err.stack);
+        res.sendJson({ error: err.message });
+      }
+    });
+  });
+}
+
+route('/open-editor', function* (query) {
   let file = query.file;
   if (!file) {
     throw new Error('No file specified');
   }
 
-  const root = rootFromRepo(query.repo);
+  const root = query.root;
   file = path.join(root, file);
 
   return yield openEditor(config.editor, root, file, query.line, query.column);
 });
 
-route('/switch-branch', function* (req, res) {
-  const query = req.query;
-  let branch = query.branch;
+route('/switch-branch', function* (query) {
+  const branch = query.branch;
+  const branchRepo = query.branchRepo;
+  const pr = query.pr;
+
   if (!branch) {
     throw new Error('No branch specified');
   }
   const root = rootFromRepo(query.repo);
-  return yield switchBranch(root, branch);
+
+  if (!branchRepo || !pr) {
+    return yield switchBranch(root, branch);
+  } else {
+    throw new Error('External repo switching not yet supported');
+    //return yield switchPrBranch(root, branch, branchRepo, pr);
+  }
 });
 
 app.listen(port, function () {
