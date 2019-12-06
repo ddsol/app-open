@@ -14,7 +14,7 @@
         "contentscript.js"
       ],
       "matches": [
-        "<all_urls>"
+        "*://github.com/*"
       ]
     }
   ],

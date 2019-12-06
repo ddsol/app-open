@@ -21,7 +21,7 @@
     }
   }
 
-  const openEditor = makeStub('openEditor', 'repo, file, line, column');
+  const openEditor = makeStub('openEditor', 'repo, ref, file, line, column');
   const switchBranch = makeStub('switchBranch', 'repo, branch, branchRepo, pr');
 
   function getRepo() {
@@ -39,8 +39,14 @@
       const repo = getRepo();
       e.preventDefault();
       e.stopPropagation();
-      openEditor(repo, target.title).then(null, err => flashMessage(err));
+      openEditor(repo, getLocationRef(), target.title).then(null, err => flashMessage(err));
     }
+  }
+
+  function getLocationRef(url) {
+    url = url || location.href;
+    const locRef = /github\.com\/[^/]+\/[^/]+\/(?:raw|blob|commit|tree|pull\/\d+\/files)\/([a-f0-9]+)(:?\/|$|#|\?)/.exec(url);
+    if (locRef) return locRef[1];
   }
 
   function handleDiffTableClick(e) {
@@ -73,29 +79,33 @@
       }
 
       let file;
+      let ref = getLocationRef();
 
-      const locFile = /github\.com\/[^/]+\/[^/]+\/blob\/[^/]+\/([^#?]*)/.exec(location);
-
+      const locFile = /github\.com\/[^/]+\/[^/]+\/blob\/([^/]+)\/([^#?]*)/.exec(location.href);
+      let link;
       if (locFile) {
-        file = locFile[1];
+        ref = locFile[1];
+        file = locFile[2];
       } else {
         try {
-          const link = target.parentNode.parentNode.parentNode.parentNode.parentNode.previousElementSibling.querySelector('div.file-info a');
-          file = link.title;
-        } catch (err) {
-          try {
-            const link = target.parentNode.parentNode.parentNode.parentNode.parentNode.querySelector('a.file-info');
-            file = link.innerText;
-          } catch (err) {
-            return;
-          }
-        }
+          link = link || target.parentNode.parentNode.parentNode.parentNode.parentNode.previousElementSibling.querySelector('div.file-info a');
+        } catch (err) {}
+        try {
+          link = link || target.parentNode.parentNode.parentNode.parentNode.parentNode.querySelector('a.file-info');
+        } catch (err) {}
+        try {
+          link = link || target.parentNode.parentNode.parentNode.parentNode.parentNode.querySelector('a[title][href*="/files/"]');
+        } catch (err) {}
+        if (!link) return;
+        file = link.title || link.innerText;
+        ref = getLocationRef(link.href) || ref;
       }
+
       if (!file) return;
       const repo = getRepo();
       e.preventDefault();
       e.stopPropagation();
-      openEditor(repo, file, line).then(null, err => flashMessage(err));
+      openEditor(repo, ref, file, line).then(null, err => flashMessage(err));
     }
   }
 
@@ -119,6 +129,10 @@
       e.preventDefault();
       e.stopPropagation();
       let branch = target.innerText.trim();
+      if (/\bselect-menu-button\b/.test(parent.className) && parent.title && !/:|Switch branches/i.test(parent.title)) {
+        target = parent;
+        branch = target.title;
+      }
       if (/:/.test(branch) && target.title) {
         let split = target.title.trim().split(':');
         branchRepo = split[0];
@@ -132,12 +146,23 @@
     }
   }
 
-  function query(selector) {
-    return Array.prototype.slice.call(document.querySelectorAll(selector));
+  function query(...selectors) {
+    return Array.from(document.querySelectorAll(selectors.join(',')));
   }
 
   function attach() {
-    query('span.current-branch>span,span.commit-ref>span,div.branch-select-menu span.js-select-button,button.branch span.js-select-button,div.RecentBranches-item a.RecentBranches-item-link,a.sha,span.sha').forEach(function(tag) {
+    query(
+      'span.current-branch>span',
+      'span.commit-ref>span',
+      'div.branch-select-menu span.js-select-button',
+      'button.branch span.js-select-button',
+      'div.RecentBranches-item a.RecentBranches-item-link',
+      'a.sha',
+      'a.branch-name',
+      'span.sha',
+      '.branch-select-menu>.select-menu-button',
+      '.commit-ref>a'
+    ).forEach(function(tag) {
       if (tag.dataset.addOpen) return;
       tag.dataset.addOpen = true;
       tag.addEventListener('click', handleBranchClick);
@@ -149,7 +174,10 @@
       tag.addEventListener('click', handleLinkClick);
     });
 
-    query('table.diff-table,table.highlight').forEach(function(tag) {
+    query(
+      'table.diff-table',
+      'table.highlight'
+    ).forEach(function(tag) {
       if (tag.dataset.addOpen) return;
       tag.dataset.addOpen = true;
       tag.addEventListener('click', handleDiffTableClick);
@@ -213,13 +241,19 @@
       attach();
     });
     //tiny delay needed for firefox
-    setTimeout(function() {
+    setTimeout(observe, 100);
+
+    function observe() {
+      if (!document.body) {
+        return setTimeout(observe, 100);
+      }
+
       observer.observe(document.body, {
         childList: true,
         subtree: true
       });
       setTimeout(() => attach(), 1);
-    }, 100)
+    }
   } else {
     attach();
   }

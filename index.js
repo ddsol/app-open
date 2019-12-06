@@ -7,9 +7,11 @@ const app = express();
 const path = require('path');
 const openEditor = require('./lib/open-editor');
 const switchBranch = require('./lib/switch-branch');
+const switchPrBranch = require('./lib/switch-pr-branch');
 const co = require('bluebird-co').co;
-const config = require('./lib/config');
+const config = require('./lib/config').config;
 const camelCase = require('camel-case');
+const gitLib = require('./lib/git');
 
 express.response.sendJson = function(json) {
   this.setHeader('Content-Type', 'application/json');
@@ -44,6 +46,7 @@ function camelCaseObj(obj) {
 function route(path, handler, noRoot) {
   app.get(path, function (req, res) {
     co(function*() {
+      res.header('Access-Control-Allow-Origin', '*');
       try {
         let query = {};
         if (req.query) {
@@ -76,9 +79,29 @@ route('/open-editor', function* (query) {
   }
 
   const root = query.root;
+  let line = query.line;
+  let column = query.column;
+
+  const git = gitLib.bind(root);
+
+  if (query.ref && line) {
+    try {
+      const mapper = yield git.diffLineMap({ file, refA: query.ref, ignoreWhiteSpace: true });
+      const mapped = mapper.aToB(line);
+      if (mapped.between) {
+        line = mapped.line + 1;
+        column = 1;
+      } else {
+        line = mapped.line;
+      }
+    } catch (err) {
+      console.log('Diffing error: ' + err.message);
+    }
+  }
+
   file = path.join(root, file);
 
-  return yield openEditor(config.editor, root, file, query.line, query.column);
+  return yield openEditor(config.editor, root, file, line, column);
 });
 
 route('/switch-branch', function* (query) {
@@ -94,8 +117,7 @@ route('/switch-branch', function* (query) {
   if (!branchRepo || !pr) {
     return yield switchBranch(root, branch);
   } else {
-    throw new Error('External repo switching not yet supported');
-    //return yield switchPrBranch(root, branch, branchRepo, pr);
+    return yield switchPrBranch(root, branch, branchRepo, pr);
   }
 });
 

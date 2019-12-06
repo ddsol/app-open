@@ -5,25 +5,15 @@ const port = 9578;
   chrome.tabs.update(tab.id, { url: 'stupid' });
 });*/
 
-function get(url) {
-  return new Promise(function(resolve, reject) {
-    let req = new XMLHttpRequest();
-    req.onreadystatechange = function() {
-      if (req.readyState === XMLHttpRequest.DONE) {
-        if (req.status === 200) {
-          resolve(req.responseText)
-        } else {
-          if (req.status === 0) {
-            reject(new Error('Could not connect to server'));
-          } else {
-            reject(new Error('Server error: ' + (req.responseText || req.statusText || req.status)));
-          }
-        }
-      }
-    };
-    req.open('GET', url);
-    req.send();
-  });
+async function get(url) {
+  const response = await fetch(url);
+  if (response.status === 0) {
+    throw new Error('Could not connect to server');
+  }
+  if (response.status !== 200) {
+    throw new Error('Server error: ' + (response.responseText || response.statusText || response.status));
+  }
+  return await response.text();
 }
 
 function getJson(url) {
@@ -76,7 +66,7 @@ function addFunc(name, params) {
   funcs[name] = makeFunc(name, params);
 }
 
-addFunc('openEditor', 'repo, file, line, column');
+addFunc('openEditor', 'repo, ref, file, line, column');
 addFunc('switchBranch', 'repo, branch, branchRepo, pr');
 
 chrome.runtime.onMessage.addListener(
